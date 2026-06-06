@@ -478,7 +478,7 @@
   });
 
   // Live donor count from API
-  fetch('http://localhost:8000/api/donors')
+  fetch('https://red-connect-funq.onrender.com/api/donors')
     .then(r => r.json())
     .then(data => {
       document.getElementById('donorCount').textContent = data.length.toLocaleString() + '+';
