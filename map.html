@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RedConnect – Live Blood Map</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root { --red:#C8102E;--charcoal:#1A1A2E;--grey:#6B7280;--white:#FFFFFF;--sidebar-w:320px; }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'DM Sans',sans-serif;display:flex;height:100vh;overflow:hidden;}
+  
+  .sidebar { width:var(--sidebar-w);background:var(--white);display:flex;flex-direction:column;border-right:1px solid rgba(0,0,0,0.1);z-index:100;box-shadow:2px 0 10px rgba(0,0,0,0.05); }
+  .logo-area { padding:20px;border-bottom:1px solid rgba(0,0,0,0.08);display:flex;align-items:center;gap:10px;text-decoration:none; }
+  .drop { width:24px;height:24px;background:var(--red);border-radius:50% 50% 50% 0;transform:rotate(-45deg); }
+  .logo-area span { font-family:'Playfair Display',serif;font-size:1.2rem;font-weight:700;color:var(--red); }
+  
+  .filters { padding:20px;border-bottom:1px solid rgba(0,0,0,0.08); }
+  .filter-title { font-size:0.85rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--grey);margin-bottom:12px; }
+  .filter-group { margin-bottom:16px; }
+  select { width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.9rem;outline:none; }
+  
+  .legend { padding:20px;flex:1;overflow-y:auto; }
+  .legend-item { display:flex;align-items:center;gap:12px;margin-bottom:16px;font-size:0.9rem;font-weight:500; }
+  .legend-icon { width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.2); }
+  .icon-hospital { background:#3b82f6; }
+  .icon-request { background:var(--red);animation:pulse 2s infinite; }
+  .icon-donor { background:#10b981; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(200,16,46,0.6);} 70%{box-shadow:0 0 0 10px rgba(200,16,46,0);} 100%{box-shadow:0 0 0 0 rgba(200,16,46,0);} }
+  
+  .map-container { flex:1;position:relative; }
+  #map { width:100%;height:100%; }
+  
+  .back-btn { position:absolute;top:20px;right:20px;z-index:400;background:var(--white);padding:10px 20px;border-radius:8px;font-weight:600;color:var(--charcoal);text-decoration:none;box-shadow:0 4px 12px rgba(0,0,0,0.15);border:1px solid rgba(0,0,0,0.1);transition:transform 0.2s; }
+  .back-btn:hover { transform:translateY(-2px); }
+
+  .leaflet-popup-content-wrapper { border-radius:12px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.15); }
+  .popup-content { font-family:'DM Sans',sans-serif; }
+  .popup-title { font-weight:700;font-size:1.05rem;margin-bottom:4px;border-bottom:1px solid #eee;padding-bottom:6px; }
+  .popup-meta { font-size:0.85rem;color:var(--grey);margin-bottom:2px; }
+  .popup-badge { display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:700;margin-top:6px; }
+  .badge-red { background:#fee2e2;color:#dc2626; }
+  .badge-blue { background:#dbeafe;color:#2563eb; }
+  .badge-green { background:#d1fae5;color:#059669; }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <a href="index.html" class="logo-area">
+    <div class="drop"></div>
+    <span>RedConnect</span>
+  </a>
+  <div class="filters">
+    <div class="filter-title">Filters</div>
+    <div class="filter-group">
+      <select id="cityFilter" onchange="loadMapData()">
+        <option value="">All Cities (Delhi NCR)</option>
+        <option value="New Delhi">New Delhi</option>
+        <option value="Gurugram">Gurugram</option>
+        <option value="Noida">Noida</option>
+        <option value="Ghaziabad">Ghaziabad</option>
+        <option value="Faridabad">Faridabad</option>
+        <option value="Sonipat">Sonipat</option>
+        <option value="Bahadurgarh">Bahadurgarh</option>
+        <option value="Greater Noida">Greater Noida</option>  
+        
+      </select>
+    </div>
+    <div class="filter-group">
+      <select id="bloodFilter" onchange="loadMapData()">
+        <option value="">All Blood Groups</option>
+        <option value="O+">O+</option>
+        <option value="A+">A+</option>
+        <option value="B+">B+</option>
+        <option value="AB+">AB+</option>
+        <option value="O-">O-</option>
+        <option value="A-">A-</option>
+        <option value="B-">B-</option>
+        <option value="AB-">AB-</option>  
+      </select>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="filter-title">Map Legend</div>
+    <div class="legend-item"><div class="legend-icon icon-request">🆘</div> Critical Blood Requests</div>
+    <div class="legend-item"><div class="legend-icon icon-hospital">🏥</div> Partner Hospitals</div>
+    <div class="legend-item"><div class="legend-icon icon-donor">🩸</div> Available Donors</div>
+  </div>
+</aside>
+
+<div class="map-container">
+  <a href="index.html" class="back-btn">← Back to Home</a>
+  <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // Initialize map centered on Delhi NCR
+  const map = L.map('map').setView([28.6139, 77.2090], 11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+  }).addTo(map);
+
+  let markers = [];
+
+  // Custom marker icons using divIcon
+  const createIcon = (emoji, type) => {
+    return L.divIcon({
+      html: `<div class="legend-icon icon-${type}">${emoji}</div>`,
+      className: 'custom-div-icon',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16]
+    });
+  };
+
+  const reqIcon = createIcon('🆘', 'request');
+  const hospIcon = createIcon('🏥', 'hospital');
+  const donorIcon = createIcon('🩸', 'donor');
+
+  // Demo Data (Since we don't have live geocoded APIs running yet, we use fixed coordinates around Delhi)
+  const mapData = {
+    requests: [
+      {lat:28.5681, lng:77.2060, title:"O+ Needed Immediately", hosp:"AIIMS New Delhi", units:2, priority:"Critical"},
+      {lat:28.4595, lng:77.0266, title:"B- Urgent", hosp:"Fortis Gurugram", units:1, priority:"Urgent"},
+      {lat:28.5800, lng:77.3300, title:"AB+ Required", hosp:"Max Hospital Noida", units:3, priority:"Critical"}
+    ],
+    hospitals: [
+      {lat:28.5670, lng:77.2100, title:"AIIMS New Delhi", city:"New Delhi"},
+      {lat:28.4600, lng:77.0270, title:"Fortis Gurugram", city:"Gurugram"},
+      {lat:28.5810, lng:77.3310, title:"Max Hospital", city:"Noida"}
+    ],
+    donors: [
+      {lat:28.5500, lng:77.2200, name:"Priya Chopra", bg:"O+", city:"New Delhi"},
+      {lat:28.4500, lng:77.0300, name:"Mohit Luthra", bg:"B+", city:"Gurugram"},
+      {lat:28.5900, lng:77.3200, name:"Garima Singh", bg:"O+", city:"Noida"},
+      {lat:28.6200, lng:77.2100, name:"Ankur Malik", bg:"AB+", city:"New Delhi"}
+    ]
+  };
+
+  async function loadMapData() {
+    // Clear existing markers
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+
+    const cityF = document.getElementById('cityFilter').value;
+    const bgF = document.getElementById('bloodFilter').value;
+
+    // Try API first, fallback to demo data
+    try {
+      const [reqRes, hospRes, donorRes] = await Promise.all([
+        fetch('http://localhost:8000/api/requests').catch(()=>null),
+        fetch('http://localhost:8000/api/hospitals').catch(()=>null),
+        fetch('http://localhost:8000/api/donors').catch(()=>null)
+      ]);
+      
+      if(reqRes && reqRes.ok) {
+        const reqs = await reqRes.json();
+        reqs.forEach(r => {
+          if(!r.lat) return;
+          if(cityF && r.city !== cityF) return;
+          if(bgF && r.bloodGroup !== bgF) return;
+          addMarker(r.lat, r.lng, reqIcon, `<div class="popup-content"><div class="popup-title">${r.bloodGroup} Needed</div><div class="popup-meta">🏥 ${r.hospitalName}</div><div class="popup-meta">💧 ${r.units} Units</div><span class="popup-badge badge-red">${r.urgency||r.priority||'Critical'}</span></div>`);
+        });
+      } else { loadDemoRequests(cityF, bgF); }
+
+      if(hospRes && hospRes.ok) {
+        const hosps = await hospRes.json();
+        hosps.forEach(h => {
+          if(!h.lat) return;
+          if(cityF && h.city !== cityF) return;
+          addMarker(h.lat, h.lng, hospIcon, `<div class="popup-content"><div class="popup-title">${h.name}</div><div class="popup-meta">📍 ${h.city}</div><span class="popup-badge badge-blue">Verified Hospital</span></div>`);
+        });
+      } else { loadDemoHospitals(cityF); }
+
+      if(donorRes && donorRes.ok) {
+        const donors = await donorRes.json();
+        donors.filter(d=>d.availability===true||d.availability==='true'||d.isAvailable===true||d.isAvailable==='true').forEach(d => {
+          if(!d.lat) return;
+          if(cityF && d.city !== cityF) return;
+          if(bgF && d.bloodGroup !== bgF) return;
+          addMarker(d.lat, d.lng, donorIcon, `<div class="popup-content"><div class="popup-title">${d.name}</div><div class="popup-meta">📍 ${d.city}</div><span class="popup-badge badge-green">${d.bloodGroup} Available</span></div>`);
+        });
+      } else { loadDemoDonors(cityF, bgF); }
+
+    } catch(e) {
+      // Offline fallback
+      loadDemoRequests(cityF, bgF);
+      loadDemoHospitals(cityF);
+      loadDemoDonors(cityF, bgF);
+    }
+  }
+
+  function addMarker(lat, lng, icon, html) {
+    const m = L.marker([lat, lng], {icon: icon}).addTo(map);
+    m.bindPopup(html);
+    markers.push(m);
+  }
+
+  function loadDemoRequests(cityF, bgF) {
+    mapData.requests.forEach(r => {
+      if(cityF && !r.hosp.includes(cityF)) return;
+      addMarker(r.lat, r.lng, reqIcon, `<div class="popup-content"><div class="popup-title">${r.title}</div><div class="popup-meta">🏥 ${r.hosp}</div><div class="popup-meta">💧 ${r.units} Units</div><span class="popup-badge badge-red">${r.priority}</span></div>`);
+    });
+  }
+  function loadDemoHospitals(cityF) {
+    mapData.hospitals.forEach(h => {
+      if(cityF && h.city !== cityF) return;
+      addMarker(h.lat, h.lng, hospIcon, `<div class="popup-content"><div class="popup-title">${h.title}</div><div class="popup-meta">📍 ${h.city}</div><span class="popup-badge badge-blue">Verified Hospital</span></div>`);
+    });
+  }
+  function loadDemoDonors(cityF, bgF) {
+    mapData.donors.forEach(d => {
+      if(cityF && d.city !== cityF) return;
+      if(bgF && !d.bg.includes(bgF)) return;
+      addMarker(d.lat, d.lng, donorIcon, `<div class="popup-content"><div class="popup-title">Donor Available</div><div class="popup-meta">📍 ${d.city}</div><span class="popup-badge badge-green">${d.bg}</span></div>`);
+    });
+  }
+
+  // Initialize
+  loadMapData();
+</script>
+</body>
+</html>
