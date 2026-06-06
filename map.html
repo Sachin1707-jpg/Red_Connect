@@ -150,9 +150,9 @@
     // Try API first, fallback to demo data
     try {
       const [reqRes, hospRes, donorRes] = await Promise.all([
-        fetch('http://localhost:8000/api/requests').catch(()=>null),
-        fetch('http://localhost:8000/api/hospitals').catch(()=>null),
-        fetch('http://localhost:8000/api/donors').catch(()=>null)
+          fetch('https://red-connect-funq.onrender.com/api/requests').catch(()=>null),
+          fetch('https://red-connect-funq.onrender.com/api/hospitals').catch(()=>null),
+          fetch('https://red-connect-funq.onrender.com/api/donors').catch(()=>null)
       ]);
       
       if(reqRes && reqRes.ok) {
