@@ -225,7 +225,7 @@
   }
 
   // Fetch basic stats from API
-  fetch('http://localhost:8000/api/admin/dashboard')
+  fetch('https://red-connect-funq.onrender.com/api/admin/dashboard')
     .then(r => r.json())
     .then(d => {
       if(d.totalDonors) document.getElementById('adminUsers').textContent = d.totalDonors;
